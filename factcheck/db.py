@@ -8,6 +8,7 @@ Usage:
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import numpy as np
@@ -17,8 +18,22 @@ ROOT = Path(__file__).resolve().parent.parent
 DB_DIR = ROOT / "data" / "factcheck_db"
 MODEL_NAME = "BAAI/bge-small-zh-v1.5"  # small, free, runs on CPU, good at Chinese
 MAX_CHARS = 500  # only the first 500 characters of a message are compared
+# A hit at or above this similarity counts as "the DB already checked this rumor".
+# Picked with scripts/tune_threshold.py (see experiments/threshold.json).
+THRESHOLD = 0.85
+MIN_TEXT = 15  # messages with fewer characters than this once links are removed are not matched
 
+URL_RE = re.compile(r"https?://\S+|www\.\S+")
 _model = None
+
+
+def text_without_links(text: str) -> str:
+    return URL_RE.sub("", text).strip()
+
+
+def is_link_only(text: str) -> bool:
+    """Two different links on the same news site look ~0.9 similar, so we never match these."""
+    return len(text_without_links(text)) < MIN_TEXT
 
 
 def get_model():
@@ -49,11 +64,16 @@ class FactCheckDB:
         self.entries = pd.read_parquet(db_dir / "entries.parquet")
         self.vectors = np.load(db_dir / "vectors.npy").astype(np.float32)
         assert len(self.entries) == len(self.vectors), "entries and vectors out of sync; rebuild"
+        self.link_only = self.entries.message.map(is_link_only).to_numpy()
 
     def search(self, text: str, k: int = 5) -> list[dict]:
-        """Return the k most similar fact-checked messages, best first."""
+        """Return the k most similar fact-checked messages, best first.
+        Link-only messages get no hits; link-only DB entries are never returned."""
+        if is_link_only(text):
+            return []
         q = embed([text])[0]
         scores = self.vectors @ q
+        scores[self.link_only] = -1
         top = np.argpartition(-scores, min(k * 4, len(scores) - 1))[: k * 4]
         top = top[np.argsort(-scores[top])]
 
@@ -78,3 +98,7 @@ class FactCheckDB:
             if len(hits) == k:
                 break
         return hits
+
+    def match(self, text: str, k: int = 3) -> list[dict]:
+        """Only the hits good enough to trust (score >= THRESHOLD). Empty = DB has no answer."""
+        return [h for h in self.search(text, k) if h["score"] >= THRESHOLD]
