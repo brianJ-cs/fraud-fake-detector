@@ -6,3 +6,8 @@ python-dotenv>=1.0
 google-genai>=1.0
 scikit-learn==1.9.1
 joblib>=1.4
+# CPU-only torch keeps the download small:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+sentence-transformers>=3.0
+numpy>=1.26
+requests>=2.31
