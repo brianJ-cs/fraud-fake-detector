@@ -101,6 +101,7 @@ if not path.exists():
 
 msgs = load_messages(path)
 ai = {str(r["id"]): r for r in read_jsonl(AI_FILE)}
+cofacts = {str(r["id"]): r["notes"] for r in read_jsonl(LABEL_DIR / "cofacts_notes.jsonl")}
 blind = blind_ids(msgs["id"].tolist())
 blind_set = set(blind)
 order = blind + [i for i in msgs["id"] if i not in blind_set]  # blind ones first
@@ -152,6 +153,18 @@ elif is_blind:
     st.caption("這 30 則不給你看 AI 的答案，用來檢查 AI 標得準不準。")
 
 st.markdown(f'<div class="msg">{html.escape(str(text_of[msg_id]))}</div>', unsafe_allow_html=True)
+
+notes = cofacts.get(msg_id, [])
+if notes:
+    first = notes[0]
+    with st.expander(f"Cofacts 查核員說：{first['verdict']}", expanded=True):
+        for n in notes:
+            st.markdown(f"**{n['verdict']}**")
+            st.write(n["text"])
+            if n.get("reference"):
+                st.caption("出處：" + n["reference"])
+else:
+    st.caption("Cofacts 沒有這則的查核。")
 
 
 def choose(label: str | None) -> None:
