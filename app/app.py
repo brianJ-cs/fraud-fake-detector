@@ -97,10 +97,12 @@ if st.button("分析", type="primary", use_container_width=True, disabled=not te
             except Exception as e:
                 st.warning(f"分類功能出錯：{e}")
     res = None
-    if cls and cls["needs_verification"]:
+    # skip only when the classifier answered and said there's nothing to check;
+    # if it's missing or failed, still verify
+    if not cls or cls.get("needs_verification", True):
         with st.spinner("查證中，大約 10–30 秒…"):
             try:
-                res = get_verifier().verify(clean, mode=mode, msg_id=cls["id"])
+                res = get_verifier().verify(clean, mode=mode, msg_id=(cls or {}).get("id", "web"))
             except Exception as e:
                 st.error(f"查證暫時無法完成：{e}")
     st.session_state.result = (clean, cls, res)
@@ -129,7 +131,7 @@ if "result" in st.session_state:
 
     # ---- verification ----
     st.subheader("查證結果")
-    if cls and not cls["needs_verification"]:
+    if cls and not cls.get("needs_verification", True):
         st.caption("分類結果沒有需要進一步查證的事實主張。")
     elif res is None:
         pass
