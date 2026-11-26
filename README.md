@@ -8,7 +8,7 @@
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-copy .env.example .env   # 填入 HF_TOKEN
+copy .env.example .env   # 依需要填入 HF_TOKEN 和 GEMINI_API_KEY
 ```
 
 ## 下載 Cofacts 資料
@@ -17,11 +17,33 @@ copy .env.example .env   # 填入 HF_TOKEN
 2. 在 https://huggingface.co/settings/tokens 建一個 read token，貼進 `.env`
 3. `python scripts/download_cofacts.py` → 檔案會存到 `data/raw/`（不會上傳 GitHub）
 
+## 分類實驗
+
+從專案根目錄執行。先把原始 Cofacts CSV 或 Parquet 放入 `data/raw/`。要重跑開發集評估，請沿用當時的原始資料版本、抽樣檔和人工標註表。如果已有 `train_weak.jsonl` 和 `dev_human.jsonl`，可直接從訓練開始。
+
+| 指令 | 用途 |
+|---|---|
+| `python scripts/prepare_cofacts_sample.py` | 依原始資料順序選取最多 1,000 則附查核回覆的文字訊息，寫到 `data/processed/cofacts_sample.jsonl`。 |
+| `python scripts/clean_cofacts_sample.py` | 清理訊息文字、去重和保留來源。 |
+| `python scripts/label_cofacts_sample.py` | 讀取 Cofacts 分類表（CSV 或 Parquet）並產生弱標籤。 |
+| `python scripts/sample_label_review_v2.py` | 根據已有的第一輪抽查表抽出第二輪人工樣本。 |
+| `python scripts/import_manual_reviews.py --allow-cleaning-match --output-dir data/processed/manual_review_import_v2` | 匯入兩輪人工抽查結果。若 CSV 檔名不同，以 `--reviews` 指定實際檔名。 |
+| `python scripts/prepare_classifier_data.py` | 將可用資料分成弱標籤訓練集與人工開發集。 |
+| `python scripts/train_svm_baseline.py` | 訓練並評估 TF-IDF 加線性 SVM。 |
+| `python scripts/run_gemini_zero_shot.py` | 用 3 則自造訊息測試 Gemini API。加上 `--evaluate-dev` 才會送出經遮蔽的開發集訊息並計算指標。 |
+| `python scripts/run_gemini_zero_shot.py --evaluate-dev --few-shot` | 用相同開發集測試加入 6 則範例的提示詞。 |
+| `python scripts/run_gemini_zero_shot.py --analyze-demo` | 測試可疑片段標示與風險分級。 |
+| `python scripts/prepare_formal_scam_candidates.py` | 在本機從未標註訊息中抽出實驗二候選，供人工分類。 |
+| `python scripts/prepare_scam_span_review.py run --formal` | 讀取 `data/processed/formal_scam_cases.csv` 中的 50 則已確認案例，產生兩份片段評分表。 |
+
+SVM 使用 542 則弱標籤訓練資料。三種方法都在 85 則人工開發資料上評估，SVM、Gemini 零樣本及 Gemini few-shot 的 Macro-F1 分別為 0.233、0.838 及 0.799。正式風險評分表與訊息原文儲存在本機。
+
 ## 資料夾
 
 - `docs/資料格式.md`：兩人共用的資料格式
-- `scripts/`：一次性的資料處理腳本
+- `scripts/`：資料處理及分類實驗程式
 - `data/`：資料（已加進 .gitignore）
+- `models/`：訓練模型、分數和逐筆預測（已加進 .gitignore）
 
 ## 分工
 

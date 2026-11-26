@@ -1,5 +1,6 @@
 # 原始訊息不要上傳 GitHub（企劃書合作規則）
 data/
+/models/
 .env
 .venv/
 __pycache__/
