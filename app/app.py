@@ -39,11 +39,9 @@ VERDICT = {  # verdict -> (中文, color)
 MODE_ZH = {"hybrid": "混合（先查資料庫，沒有再上網）", "db_only": "只查 Cofacts 資料庫", "web_only": "只上網搜尋"}
 
 
-@st.cache_resource(show_spinner="第一次開啟，載入查核資料庫中…")
+@st.cache_resource(show_spinner=False)
 def get_verifier() -> Verifier:
-    v = Verifier()
-    v.db.search("暖機")
-    return v
+    return Verifier()
 
 
 def badge(text: str, color: str, big: bool = False) -> str:
@@ -98,12 +96,13 @@ if st.button("分析", type="primary", use_container_width=True, disabled=not te
                 cls = classify(clean)
             except Exception as e:
                 st.warning(f"分類功能出錯：{e}")
-    with st.spinner("查證中，大約 10–30 秒…"):
-        try:
-            res = get_verifier().verify(clean, mode=mode, msg_id="web")
-        except Exception as e:
-            res = None
-            st.error(f"查證失敗（可能是 Gemini 太忙，稍後再試）：{e}")
+    res = None
+    if cls and cls["needs_verification"]:
+        with st.spinner("查證中，大約 10–30 秒…"):
+            try:
+                res = get_verifier().verify(clean, mode=mode, msg_id=cls["id"])
+            except Exception as e:
+                st.error(f"查證暫時無法完成：{e}")
     st.session_state.result = (clean, cls, res)
 
 if "result" in st.session_state:
@@ -130,7 +129,9 @@ if "result" in st.session_state:
 
     # ---- verification ----
     st.subheader("查證結果")
-    if res is None:
+    if cls and not cls["needs_verification"]:
+        st.caption("分類結果沒有需要進一步查證的事實主張。")
+    elif res is None:
         pass
     elif not res["claims"]:
         st.markdown(badge("沒有可查證的說法", "#80868b", big=True), unsafe_allow_html=True)
