@@ -28,6 +28,7 @@ except ImportError:
 EXAMPLE = ("衛福部公告：喝隔夜開水會致癌，明天起家中被查到有隔夜開水罰款 3000 元！"
            "想知道更多養生秘訣請加老師 LINE：abc123，請轉傳給親友！")
 LABEL_ZH = {"scam": "詐騙", "rumor": "謠言", "normal": "正常"}
+RISK_ZH = {"high": "高", "medium": "中", "low": "低"}
 LABEL_COLOR = {"scam": "#d93025", "rumor": "#e8710a", "normal": "#188038"}
 VERDICT = {  # verdict -> (中文, color)
     "false": ("不實", "#d93025"),
@@ -114,7 +115,9 @@ if "result" in st.session_state:
         label = cls.get("label", "")
         conf = cls.get("confidence")
         st.markdown(badge(LABEL_ZH.get(label, label), LABEL_COLOR.get(label, "#80868b"), big=True)
-                    + (f"　信心 {conf:.0%}" if isinstance(conf, (int, float)) else ""), unsafe_allow_html=True)
+                    + (f"　信心 {conf:.0%}" if isinstance(conf, (int, float)) else "")
+                    + (f"　風險：{RISK_ZH.get(cls['risk'], cls['risk'])}" if cls.get("risk") else ""),
+                    unsafe_allow_html=True)
         if cls.get("reason"):
             st.write(cls["reason"])
         spans = cls.get("suspicious_spans") or []
