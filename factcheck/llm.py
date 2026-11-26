@@ -69,7 +69,10 @@ def ask_json(prompt: str, schema: dict, temperature: float = 0.0) -> dict:
         except Exception as e:  # rate limit, 5xx, or a broken JSON answer
             msg = str(e)
             retry = any(s in msg for s in ("429", "RESOURCE_EXHAUSTED", "500", "503", "UNAVAILABLE",
-                                           "DEADLINE", "Expecting", "JSON"))
+                                           "DEADLINE", "Expecting", "JSON",
+                                           # flaky internet: DNS lookups failing, dropped connections
+                                           "getaddrinfo", "ConnectError", "disconnected", "timed out",
+                                           "Timeout", "ConnectionReset"))
             if not retry or attempt == RETRIES - 1:
                 raise
             if "503" in msg or "UNAVAILABLE" in msg:

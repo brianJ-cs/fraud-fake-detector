@@ -84,6 +84,8 @@ def summary() -> dict:
             "has a source": sum(any(c["sources"] for c in r["claims"]) for r in rows) / n,
             "used the DB": sum(any(s["from"] == "db" for c in r["claims"] for s in c["sources"]) for r in rows) / n,
             "avg seconds": sum(r["elapsed_sec"] for r in rows) / n,
+            # median too: a run that sat through a network drop shouldn't drag the comparison
+            "avg (median) seconds": float(pd.Series([r["elapsed_sec"] for r in rows]).median()),
             "avg claims": sum(len(r["claims"]) for r in rows) / n,
         }
     print(f"\n{'':30s}" + "".join(f"{m:>11s}" for m in table))

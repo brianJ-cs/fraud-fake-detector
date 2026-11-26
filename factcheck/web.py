@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from urllib.parse import urlparse
 
 import requests
@@ -97,19 +98,23 @@ def search_web(query: str, k: int = 5, timeout: int = 30) -> list[dict]:
     key = os.getenv("TAVILY_API_KEY")
     if not key:
         raise RuntimeError("TAVILY_API_KEY is missing from .env")
-    resp = requests.post(
-        API,
-        headers={"Authorization": f"Bearer {key}"},
-        json={
-            "query": query[:400],
-            "max_results": k,
-            "search_depth": "basic",
-            "include_domains": list(TRUSTED_SITES),
-            "exclude_domains": BLOCKED_SITES,
-            "include_raw_content": True,
-        },
-        timeout=timeout,
-    )
+    body = {
+        "query": query[:400],
+        "max_results": k,
+        "search_depth": "basic",
+        "include_domains": list(TRUSTED_SITES),
+        "exclude_domains": BLOCKED_SITES,
+        "include_raw_content": True,
+    }
+    for attempt in range(4):  # ride out a flaky connection (a failed request costs no credit)
+        try:
+            resp = requests.post(API, headers={"Authorization": f"Bearer {key}"}, json=body, timeout=timeout)
+            if resp.status_code < 500:
+                break
+        except requests.exceptions.ConnectionError:
+            if attempt == 3:
+                raise
+        time.sleep(5 * 2 ** attempt)
     resp.raise_for_status()
     out = []
     for r in resp.json().get("results", []):
