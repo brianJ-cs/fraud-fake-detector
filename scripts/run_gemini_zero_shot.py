@@ -169,7 +169,10 @@ def get_api_key():
 
 
 class GeminiError(RuntimeError):
-    pass
+    def __init__(self, message, *, retryable=False, retry_after=0):
+        super().__init__(message)
+        self.retryable = retryable
+        self.retry_after = retry_after
 
 
 def prompt_messages(examples):
@@ -210,6 +213,8 @@ def request_json(text, model, api_key, messages, schema_name, schema):
             payload = json.load(response)
     except HTTPError as error:
         status = error.code
+        header = error.headers.get("Retry-After", "")
+        retry_after = int(header) if header.isdecimal() else 0
         error.close()
         detail = {
             400: "請確認所選模型支援 JSON 結構化輸出，並檢查金鑰是否有效",
@@ -218,9 +223,12 @@ def request_json(text, model, api_key, messages, schema_name, schema):
             404: "請用 --model 指定你在 Gemini API 測試成功的模型 ID",
             429: "達到請求限制或使用額度，額度恢復後可執行原指令接續",
         }.get(status, "請稍後重試")
-        raise GeminiError(f"Gemini API HTTP {status}，{detail}") from None
+        raise GeminiError(
+            f"Gemini API HTTP {status}，{detail}",
+            retryable=status in {408, 429, 500, 502, 503, 504}, retry_after=retry_after,
+        ) from None
     except (URLError, TimeoutError):
-        raise GeminiError("連不到 Gemini API 或請求逾時，請稍後重試") from None
+        raise GeminiError("連不到 Gemini API 或請求逾時，請稍後重試", retryable=True) from None
 
     try:
         choice = payload["choices"][0]

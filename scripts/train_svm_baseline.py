@@ -32,7 +32,7 @@ def text_key(text):
     return " ".join(unicodedata.normalize("NFKC", text).split()).casefold()
 
 
-def read_dataset(path, expected_source):
+def read_dataset(path, expected_source, *, allow_duplicate_text=False):
     rows = []
     ids = set()
     texts = set()
@@ -50,7 +50,7 @@ def read_dataset(path, expected_source):
             if not isinstance(text, str) or len(text_key(text)) < 2:
                 raise ValueError(f"{path.name} 第 {line_number} 行文字缺漏或過短")
             key = text_key(text)
-            if key in texts:
+            if key in texts and not allow_duplicate_text:
                 raise ValueError(f"{path.name} 有重複文字，請重新準備資料")
             if row.get("label") not in LABELS:
                 raise ValueError(f"{path.name} 第 {line_number} 行 label 必須是 scam、rumor 或 normal")
